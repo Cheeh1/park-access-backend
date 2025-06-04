@@ -22,12 +22,14 @@ const authRoutes = require('./routes/authRoutes');
 const parkingLotRoutes = require('./routes/parkingLotRoutes');
 const timeSlotRoutes = require('./routes/timeSlots');
 const paymentRoutes = require('./routes/paymentRoutes');
+const analyticsRoutes = require('./routes/analytics');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/parking-lots', parkingLotRoutes);
 app.use('/api/time-slots', timeSlotRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running');

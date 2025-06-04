@@ -30,6 +30,14 @@ const findAvailableSpot = async (parkingLotId, startTime, endTime, totalSpots) =
 // @access  Private
 exports.initializePayment = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot make bookings or payments. Only regular users can book parking spots.'
+            });
+        }
+
         const { 
             parkingLotId, 
             startTime, 
@@ -177,6 +185,14 @@ exports.handleWebhook = async (req, res) => {
 // @access  Private
 exports.verifyPayment = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot access payment verification. Only regular users can verify payments.'
+            });
+        }
+
         const { reference } = req.params;
 
         const timeSlot = await TimeSlot.findOne({ 'payment.reference': reference })
@@ -187,6 +203,14 @@ exports.verifyPayment = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Booking not found'
+            });
+        }
+
+        // Additional check: ensure the booking belongs to the requesting user
+        if (timeSlot.bookedBy.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized to access this booking'
             });
         }
 

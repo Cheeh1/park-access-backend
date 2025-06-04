@@ -6,6 +6,14 @@ const ParkingLot = require('../models/parkingLot');
 // @access  Private
 exports.bookTimeSlot = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot book parking lots. Only regular users can make bookings.'
+            });
+        }
+
         const { parkingLotId, startTime, endTime } = req.body;
 
         // Validate required fields
@@ -273,6 +281,14 @@ exports.getAvailableTimeSlots = async (req, res) => {
 // @access  Private
 exports.cancelTimeSlot = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot cancel bookings. Only regular users can cancel their bookings.'
+            });
+        }
+
         const timeSlot = await TimeSlot.findById(req.params.id);
 
         if (!timeSlot) {
@@ -319,6 +335,14 @@ exports.cancelTimeSlot = async (req, res) => {
 // @access  Private
 exports.getUserBookingHistory = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot access user booking history. Use company booking history endpoints instead.'
+            });
+        }
+
         const page = parseInt(req.query.page, 10) || 1;
         const limit = parseInt(req.query.limit, 10) || 10;
         const startIndex = (page - 1) * limit;
@@ -415,6 +439,14 @@ exports.getUserBookingHistory = async (req, res) => {
 // @access  Private
 exports.getUserBookingHistoryGrouped = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot access user booking history. Use company booking history endpoints instead.'
+            });
+        }
+
         const now = new Date();
 
         // Build base query
@@ -484,6 +516,14 @@ exports.getUserBookingHistoryGrouped = async (req, res) => {
 // @access  Private
 exports.getUserBookingStats = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot access user booking statistics. Use company statistics endpoints instead.'
+            });
+        }
+
         // Get total bookings
         const totalBookings = await TimeSlot.countDocuments({
             bookedBy: req.user.id
@@ -605,6 +645,11 @@ exports.getCompanyBookingHistory = async (req, res) => {
             parkingLot: { $in: parkingLotIds }
         };
 
+        // Add booking ID filter if provided
+        if (req.query.bookingId) {
+            query._id = req.query.bookingId;
+        }
+
         // Add date filter if provided
         if (req.query.startDate && req.query.endDate) {
             query.startTime = {
@@ -628,17 +673,132 @@ exports.getCompanyBookingHistory = async (req, res) => {
             query.parkingLot = req.query.parkingLotId;
         }
 
-        // Get total count for pagination
-        const total = await TimeSlot.countDocuments(query);
+        // Add time-based filter (active, completed, upcoming)
+        const now = new Date();
+        if (req.query.timeFilter === 'upcoming') {
+            query.startTime = { $gt: now };
+        } else if (req.query.timeFilter === 'active') {
+            query.startTime = { $lte: now };
+            query.endTime = { $gte: now };
+        } else if (req.query.timeFilter === 'completed') {
+            query.endTime = { $lt: now };
+        }
 
-        // Get bookings with populated fields
-        const bookings = await TimeSlot.find(query)
-            .populate('parkingLot', 'name location totalSpots')
-            .populate('bookedBy', 'fullName email')
-            .populate('carDetails', 'licensePlate carModel carColor')
-            .sort({ startTime: -1 }) // Sort by start time, newest first
-            .skip(startIndex)
-            .limit(limit);
+        // For customer name and car plate number filters, we need to use aggregation
+        // because they involve searching in populated fields
+        let aggregationPipeline = [
+            { $match: query },
+            {
+                $lookup: {
+                    from: 'parkinglots',
+                    localField: 'parkingLot',
+                    foreignField: '_id',
+                    as: 'parkingLot'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'bookedBy',
+                    foreignField: '_id',
+                    as: 'bookedBy'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'cardetails',
+                    localField: 'carDetails',
+                    foreignField: '_id',
+                    as: 'carDetails'
+                }
+            },
+            { $unwind: { path: '$parkingLot', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$bookedBy', preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: '$carDetails', preserveNullAndEmptyArrays: true } }
+        ];
+
+        // Add customer name filter if provided
+        if (req.query.customerName) {
+            aggregationPipeline.push({
+                $match: {
+                    'bookedBy.fullName': { $regex: req.query.customerName, $options: 'i' }
+                }
+            });
+        }
+
+        // Add car plate number filter if provided
+        if (req.query.carPlate) {
+            aggregationPipeline.push({
+                $match: {
+                    'carDetails.licensePlate': { $regex: req.query.carPlate, $options: 'i' }
+                }
+            });
+        }
+
+        // Add sorting
+        aggregationPipeline.push({ $sort: { startTime: -1 } });
+
+        // Get total count for pagination
+        const countPipeline = [...aggregationPipeline, { $count: "total" }];
+        const countResult = await TimeSlot.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        // Add pagination
+        aggregationPipeline.push(
+            { $skip: startIndex },
+            { $limit: limit }
+        );
+
+        // Execute aggregation
+        const bookings = await TimeSlot.aggregate(aggregationPipeline);
+
+        // Format the response with detailed booking information
+        const formattedBookings = bookings.map(booking => {
+            const startTime = new Date(booking.startTime);
+            const endTime = new Date(booking.endTime);
+            
+            // Determine time status
+            let timeStatus;
+            if (endTime < now) {
+                timeStatus = 'completed';
+            } else if (startTime <= now && endTime >= now) {
+                timeStatus = 'active';
+            } else {
+                timeStatus = 'upcoming';
+            }
+
+            return {
+                bookingId: booking._id,
+                customer: {
+                    name: booking.bookedBy?.fullName || 'N/A',
+                    email: booking.bookedBy?.email || 'N/A'
+                },
+                parkingLot: {
+                    name: booking.parkingLot?.name || 'N/A',
+                    location: booking.parkingLot?.location || 'N/A'
+                },
+                spotNumber: booking.spotNumber,
+                dateTime: {
+                    startTime: booking.startTime,
+                    endTime: booking.endTime,
+                    duration: Math.ceil((endTime - startTime) / (1000 * 60 * 60)) // Duration in hours
+                },
+                carDetails: {
+                    licensePlate: booking.carDetails?.licensePlate || 'N/A',
+                    carModel: booking.carDetails?.carModel || 'N/A',
+                    carColor: booking.carDetails?.carColor || 'N/A'
+                },
+                payment: {
+                    amount: booking.payment?.amount || 0,
+                    status: booking.payment?.status || 'pending',
+                    reference: booking.payment?.reference || 'N/A',
+                    paidAt: booking.payment?.paidAt || null
+                },
+                status: booking.status,
+                timeStatus,
+                createdAt: booking.createdAt
+            };
+        });
 
         // Calculate pagination info
         const pagination = {
@@ -650,7 +810,7 @@ exports.getCompanyBookingHistory = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: bookings,
+            data: formattedBookings,
             pagination
         });
     } catch (error) {
@@ -824,9 +984,17 @@ exports.getCompanyBookingStats = async (req, res) => {
 // @access  Private
 exports.getUserFilterOptions = async (req, res) => {
     try {
+        // Check if user is not a company
+        if (req.user.role === 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Companies cannot access user filter options. Use company filter endpoints instead.'
+            });
+        }
+
         // Get booking statuses
         const bookingStatuses = ['booked', 'cancelled', 'completed'];
-
+        
         // Get payment statuses
         const paymentStatuses = ['pending', 'success', 'failed'];
 
@@ -886,13 +1054,16 @@ exports.getCompanyFilterOptions = async (req, res) => {
 
         // Get booking statuses
         const bookingStatuses = ['booked', 'cancelled', 'completed'];
-
+        
         // Get payment statuses
         const paymentStatuses = ['pending', 'success', 'failed'];
 
+        // Get time filter options
+        const timeFilters = ['upcoming', 'active', 'completed'];
+
         // Get company's parking lots
-        const companyParkingLots = await ParkingLot.find({
-            createdBy: req.user.id
+        const companyParkingLots = await ParkingLot.find({ 
+            createdBy: req.user.id 
         }).select('_id name location');
 
         if (companyParkingLots.length === 0) {
@@ -901,6 +1072,7 @@ exports.getCompanyFilterOptions = async (req, res) => {
                 data: {
                     bookingStatuses,
                     paymentStatuses,
+                    timeFilters,
                     dateRange: { minDate: null, maxDate: null },
                     parkingLots: []
                 }
@@ -930,6 +1102,7 @@ exports.getCompanyFilterOptions = async (req, res) => {
             data: {
                 bookingStatuses,
                 paymentStatuses,
+                timeFilters,
                 dateRange: dateRange[0] || { minDate: null, maxDate: null },
                 parkingLots: companyParkingLots
             }
