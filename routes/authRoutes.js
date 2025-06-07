@@ -3,20 +3,21 @@ const express = require('express');
 const router = express.Router();
 const { register, login, getMe, changePassword, updateUser } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
+const { authLimiter, createLimiter } = require('../middleware/rateLimiter');
 
-// Register route
-router.post('/register', register);
+// Register route - strict rate limiting
+router.post('/register', authLimiter, register);
 
-// Login route
-router.post('/login', login);
+// Login route - strict rate limiting
+router.post('/login', authLimiter, login);
 
 // Get current user route
 router.get('/me', protect, getMe);
 
-// Change password route
-router.put('/change-password', protect, changePassword);
+// Change password route - moderate rate limiting
+router.put('/change-password', protect, createLimiter, changePassword);
 
-// Update user profile route
-router.put('/update-profile', protect, updateUser);
+// Update user profile route - moderate rate limiting
+router.put('/update-profile', protect, createLimiter, updateUser);
 
 module.exports = router;

@@ -10,23 +10,24 @@ const {
 } = require('../controllers/parkingLotController');
 const { protect } = require('../middleware/authMiddleware');
 const { upload } = require('../config/cloudinary');
+const { readLimiter, createLimiter } = require('../middleware/rateLimiter');
 
-// Search parking lots by location and price
-router.get('/search', searchParkingLots);
+// Search parking lots by location and price - read limiter
+router.get('/search', readLimiter, searchParkingLots);
 
-// Get all parking lots
-router.get('/', getParkingLots);
+// Get all parking lots - read limiter
+router.get('/', readLimiter, getParkingLots);
 
-// Get single parking lot
-router.get('/:id', getParkingLot);
+// Get single parking lot - read limiter
+router.get('/:id', readLimiter, getParkingLot);
 
-// Create parking lot route (with image upload)
-router.post('/', protect, upload.array('images', 5), createParkingLot);
+// Create parking lot route (with image upload) - create limiter
+router.post('/', protect, createLimiter, upload.array('images', 5), createParkingLot);
 
-// Update parking lot route (with image upload)
-router.put('/:id', protect, upload.array('images', 5), updateParkingLot);
+// Update parking lot route (with image upload) - create limiter
+router.put('/:id', protect, createLimiter, upload.array('images', 5), updateParkingLot);
 
-// Delete parking lot route
-router.delete('/:id', protect, deleteParkingLot);
+// Delete parking lot route - create limiter
+router.delete('/:id', protect, createLimiter, deleteParkingLot);
 
 module.exports = router; 

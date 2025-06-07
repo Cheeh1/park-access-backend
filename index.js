@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { generalLimiter } = require('./middleware/rateLimiter');
 
 // Load env vars
 dotenv.config();
@@ -10,6 +11,9 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
 
 // Body parser
 app.use(express.json());
