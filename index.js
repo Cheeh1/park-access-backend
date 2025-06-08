@@ -22,13 +22,13 @@ app.use(express.json());
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        '',  // Production frontend
+        'https://parkaccess-urban-reserve.vercel.app/',  // Production frontend
         // Add other production URLs here
       ]
     : [
         'http://localhost:3000',  // Local development
         'http://localhost:5173',  // Vite dev server
-        // 'http://localhost:8080',  // Vue CLI dev server
+        'http://localhost:8080',  // Vue CLI dev server
         'http://192.168.15.8:8080'
         // Add your actual development URLs here
       ],
