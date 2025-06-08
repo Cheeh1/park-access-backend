@@ -22,7 +22,7 @@ app.use(express.json());
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        'https://parkaccess-urban-reserve.vercel.app/',  // Production frontend
+        'https://parkaccess-urban-reserve.vercel.app',  // Production frontend
         // Add other production URLs here
       ]
     : [
