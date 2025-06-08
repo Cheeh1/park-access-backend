@@ -11,7 +11,7 @@ Company Portal: Add parking lots, set pricing, track bookings
 
 Analytics: Access to payment reports and booking statistics
 
-Secure Payments: (If integrated, e.g., Paystack or Stripe)
+Secure Payments: Paystack payment integration
 
 ⚙️ Tech Stack
 Node.js
