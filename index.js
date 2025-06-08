@@ -18,8 +18,26 @@ app.use(generalLimiter);
 // Body parser
 app.use(express.json());
 
-// Enable CORS
-app.use(cors());
+// Enable CORS with specific configuration
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? [
+        '',  // Production frontend
+        // Add other production URLs here
+      ]
+    : [
+        'http://localhost:3000',  // Local development
+        'http://localhost:5173',  // Vite dev server
+        // 'http://localhost:8080',  // Vue CLI dev server
+        'http://192.168.15.8:8080'
+        // Add your actual development URLs here
+      ],
+  credentials: true,  // Allow cookies/auth headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 
 // Define routes
 const authRoutes = require('./routes/authRoutes');
