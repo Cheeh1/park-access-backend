@@ -24,6 +24,38 @@ exports.getParkingLots = async (req, res) => {
     }
 };
 
+// @desc    Get parking lots created by the authenticated company
+// @route   GET /api/parking-lots/my-lots
+// @access  Private (Company only)
+exports.getMyParkingLots = async (req, res) => {
+    try {
+        // Check if user is a company
+        if (req.user.role !== 'company') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only companies can access this endpoint'
+            });
+        }
+
+        const parkingLots = await ParkingLot.find({ createdBy: req.user.id })
+            .populate('createdBy', 'fullName email')
+            .select('name location totalSpots availableSpots hourlyRate images createdBy createdAt')
+            .sort('-createdAt'); // Sort by newest first
+
+        res.status(200).json({
+            success: true,
+            count: parkingLots.length,
+            data: parkingLots
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Server Error'
+        });
+    }
+};
+
 // @desc    Get single parking lot
 // @route   GET /api/parking-lots/:id
 // @access  Public

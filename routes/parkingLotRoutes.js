@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getParkingLots,
+    getMyParkingLots,
     getParkingLot,
     createParkingLot,
     updateParkingLot,
@@ -14,6 +15,9 @@ const { readLimiter, createLimiter } = require('../middleware/rateLimiter');
 
 // Search parking lots by location and price - read limiter
 router.get('/search', readLimiter, searchParkingLots);
+
+// Get my parking lots (company-specific) - protected route
+router.get('/my-lots', protect, readLimiter, getMyParkingLots);
 
 // Get all parking lots - read limiter
 router.get('/', readLimiter, getParkingLots);
