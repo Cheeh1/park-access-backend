@@ -266,25 +266,33 @@ exports.deleteParkingLot = async (req, res) => {
     }
 };
 
-// @desc    Search parking lots by location and price
+// @desc    Search parking lots by name, location and price
 // @route   GET /api/parking-lots/search
 // @access  Public
 exports.searchParkingLots = async (req, res) => {
     try {
-        const { location, minPrice, maxPrice } = req.query;
+        const { query, location, minPrice, maxPrice } = req.query;
 
-        if (!location && !minPrice && !maxPrice) {
+        if (!query && !location && !minPrice && !maxPrice) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide at least one search criteria (location, minPrice, or maxPrice)'
+                message: 'Please provide at least one search criteria (query, location, minPrice, or maxPrice)'
             });
         }
 
         // Build search query
         const searchQuery = {};
 
-        // Add location search if provided
-        if (location) {
+        // Add text search if provided (searches both name and location)
+        if (query) {
+            searchQuery.$or = [
+                { name: new RegExp(query, 'i') },
+                { location: new RegExp(query, 'i') }
+            ];
+        }
+
+        // Add location search if provided (for backward compatibility)
+        if (location && !query) {
             searchQuery.location = new RegExp(location, 'i');
         }
 
