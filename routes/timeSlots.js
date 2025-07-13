@@ -58,7 +58,8 @@ router.get('/ticket/:bookingId', readLimiter, async (req, res) => {
     // Find the booking by ID and populate related data
     const booking = await TimeSlot.findById(bookingId)
       .populate('parkingLot', 'name location')
-      .populate('user', 'fullName email');
+      .populate('bookedBy', 'fullName email')
+      .populate('carDetails');
     
     if (!booking) {
       return res.status(404).json({
@@ -76,6 +77,10 @@ router.get('/ticket/:bookingId', readLimiter, async (req, res) => {
           name: booking.parkingLot.name,
           location: booking.parkingLot.location
         },
+        user: {
+          fullName: booking.bookedBy.fullName,
+          email: booking.bookedBy.email
+        },
         spotNumber: booking.spotNumber,
         startTime: booking.startTime,
         endTime: booking.endTime,
@@ -85,6 +90,7 @@ router.get('/ticket/:bookingId', readLimiter, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error fetching booking:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
